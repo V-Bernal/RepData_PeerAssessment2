@@ -1,0 +1,169 @@
+---
+title: 'Reproducible Research: Peer Assessment 2'
+author: "Victor Bernal"
+date: "`r format(Sys.Date(), '%d %B, %Y')`"
+output: "html_document"
+---
+
+```{r setup, include=FALSE, echo=TRUE, tidy=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Synopsis
+
+Severe weather events can cause public health (e.g. fatalities, injuries) and economic problems (e.g. property and crops damage). 
+Thus the interest to identify the events with the largest human and economic impact. 
+This Report uses the Storm Database of the U.S. National Oceanic and Atmospheric Administration (NOAA) 
+The events in the database start in the year 1950 and end in November 2011. For more details <https://www.coursera.org/learn/reproducible-research/peer/OMZ37/course-project-2>.
+
+# Loading and preprocessing the data
+```{r, cache = TRUE}
+fileurl <- 'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2'
+
+if(!file.exists('repdata_data_StormData.csv.bz2')) {
+  download.file(fileurl, 'repdata_data_StormData.csv.bz2')
+  #unzip(zipfile='repdata_data_activity.zip')
+  #file.remove('repdata_data_activity.zip')
+  DATA <- read.csv("repdata_data_StormData.csv.bz2", header = TRUE, sep = ",")
+} else {
+  #unzip(zipfile='repdata_data_activity.zip')
+  DATA <- read.csv("repdata_data_StormData.csv.bz2", header = TRUE, sep = ",")
+}
+```
+
+The are `r nrow(DATA)` observations in this dataset, for the variables 
+```{r , echo = TRUE, comment = ""}
+head(DATA)
+```
+
+The type of events are reported are
+```{r , echo = TRUE, comment = ""}
+unique(DATA$EVTYPE)
+```
+
+# Data Processing: Re-define the type of events
+Some events are reporte d with acronyms, typos, etc. We will cluster these a broader label. Our new general labels are "STORM", "FOG", "FLOOD", "COLD", "VOLCANO", "HOT" (weather), "FIRE". For instance, "STORM" would summarize "SHOWER","PRECIPITATION","HURRICANE","TYPHOON"... and basically any event related to raining.
+```{r , echo = TRUE}
+DATA$EVTYPE_modified<-DATA$EVTYPE
+DATA$EVTYPE_modified<-trimws(as.character(DATA$EVTYPE_modified))
+DATA$EVTYPE_modified<-toupper(as.character(DATA$EVTYPE_modified))
+
+myValues <- c("SHOWER","PRECIPITATION","HURRICANE","TSTM","TSTMW","TUNDERSTORM","TYPHOON","WIND","WND","LIGHTNING","WINTER STORMS","STORM","GUSTS","HAIL","WHIRLWIND","CLOUD","TORNDAO","TORNADOES","TORNADO","RAIN", "PRECIPATATION", "PRECIP" )
+pattern <- paste(myValues, collapse = "|")
+DATA$EVTYPE_modified[grep(pattern,c(as.character(DATA$EVTYPE_modified)))]<-"STORM"
+
+myValues <- c("SURF", "TSUNAMI" , "TIDE" )
+pattern <- paste(myValues, collapse = "|")
+DATA$EVTYPE_modified[grep(pattern,c(as.character(DATA$EVTYPE_modified)))]<-"TSUNAMI/TIDES"
+
+myValues <- c("SLID" )
+pattern <- paste(myValues, collapse = "|")
+DATA$EVTYPE_modified[grep(pattern,c(as.character(DATA$EVTYPE_modified)))]<-"SLIDE*"
+
+myValues <- c("FOG" )
+pattern <- paste(myValues, collapse = "|")
+DATA$EVTYPE_modified[grep(pattern,c(as.character(DATA$EVTYPE_modified)))]<-"FOG"
+
+myValues <- c("FLOOD","FLOODING","FLD","WET","SPOUT","RAIN","WET","TIDAL")
+pattern <- paste(myValues, collapse = "|")
+DATA$EVTYPE_modified[grep(pattern,c(as.character(DATA$EVTYPE_modified)))]<-"FLOOD"
+
+myValues <- c("FREEZING","HYPOTHERMIA","ICE","FREEZE","WINTRY","WINTERY","WINTER WEATHER","SNOW","COLD","LOW TEMP","COOL","COLD" ,"BLIZZARD")
+pattern <- paste(myValues, collapse = "|")
+DATA$EVTYPE_modified[grep(pattern,c(as.character(DATA$EVTYPE_modified)))]<-"COLD"
+
+myValues <- c("VOLCANIC","VOG")
+pattern <- paste(myValues, collapse = "|")
+DATA$EVTYPE_modified[grep(pattern,c(as.character(DATA$EVTYPE_modified)))]<-"VOLCANO"
+
+myValues <- c("HYPERTHERMIA","WARM","DRY","WARM","WARMTH","DRYHOT","HOT","HEAT")
+pattern <- paste(myValues, collapse = "|")
+DATA$EVTYPE_modified[grep(pattern,c(as.character(DATA$EVTYPE_modified)))]<-"HOT"
+
+myValues <- c("WILDFIRES","FIRE","FIRES","WILDFIRE")
+pattern <- paste(myValues, collapse = "|")
+DATA$EVTYPE_modified[grep(pattern,c(as.character(DATA$EVTYPE_modified)))]<-"FIRE"
+
+# Un-comment 
+#unique(DATA$EVTYPE_modified)
+#table(DATA$EVTYPE_modified)
+```
+
+
+## Exponent
+
+PROPDMGEXP and CROPDMGEXP are used as exponents to the numeric values for the damage. 
+The only symbols with a clear meaning are:
+   
+1. H or h:  hundreds of dollars
+2. K or k:  thousands of dollars
+3. M or m:  millions of dollars
+4. B or b:  billions of dollars
+
+We leave the symbols without a clear meaning without change. 
+
+```{r, echo = TRUE, comment= ""}
+
+table(DATA$PROPDMGEXP)
+
+DATA$PROPDAMAGE = DATA$PROPDMG
+
+DATA[DATA$PROPDMGEXP == "h", ]$PROPDAMAGE = DATA[DATA$PROPDMGEXP == "h", ]$PROPDMG * 10^2
+DATA[DATA$PROPDMGEXP == "H", ]$PROPDAMAGE = DATA[DATA$PROPDMGEXP == "H", ]$PROPDMG * 10^2
+DATA[DATA$PROPDMGEXP == "K", ]$PROPDAMAGE = DATA[DATA$PROPDMGEXP == "K", ]$PROPDMG * 10^3
+DATA[DATA$PROPDMGEXP == "m", ]$PROPDAMAGE = DATA[DATA$PROPDMGEXP == "m", ]$PROPDMG * 10^6
+DATA[DATA$PROPDMGEXP == "M", ]$PROPDAMAGE = DATA[DATA$PROPDMGEXP == "M", ]$PROPDMG * 10^6
+DATA[DATA$PROPDMGEXP == "B", ]$PROPDAMAGE = DATA[DATA$PROPDMGEXP == "B", ]$PROPDMG * 10^9
+
+table(DATA$CROPDMGEXP)
+
+DATA$CROPDAMAGE = DATA$CROPDMG
+DATA[DATA$CROPDMGEXP == "H", ]$CROPDAMAGE = DATA[DATA$CROPDMGEXP == "H", ]$CROPDMG * 10^2
+DATA[DATA$CROPDMGEXP == "k", ]$CROPDAMAGE = DATA[DATA$CROPDMGEXP == "k", ]$CROPDMG * 10^3
+DATA[DATA$CROPDMGEXP == "K", ]$CROPDAMAGE = DATA[DATA$CROPDMGEXP == "K", ]$CROPDMG * 10^3
+DATA[DATA$CROPDMGEXP == "m", ]$CROPDAMAGE = DATA[DATA$CROPDMGEXP == "m", ]$CROPDMG * 10^6
+DATA[DATA$CROPDMGEXP == "M", ]$CROPDAMAGE = DATA[DATA$CROPDMGEXP == "M", ]$CROPDMG * 10^6
+DATA[DATA$CROPDMGEXP == "B", ]$CROPDAMAGE = DATA[DATA$CROPDMGEXP == "B", ]$CROPDMG * 10^9
+```
+
+# Results
+We consider as "harmful to population health" the events with considerable number of fatalities or injuries. We choose 10 as a cutoff to define a harmful event to the public, as fewer might not represent a burden to public health centers.
+
+```{r , echo = TRUE, fig.height= 6, fig.width= 10,fig.align = "center"}
+#subset(x=DATA, DATA$FATALITIES>10 ||DATA$INJURIES>10 , select=c(FATALITIES,INJURIES, #EVTYPE_modified))
+#table(subset(x=DATA, DATA$FATALITIES>10 |DATA$INJURIES>10 , select=c(FATALITIES,INJURIES, EVTYPE_modified)))
+
+SUBDATA<- subset(x=DATA, DATA$FATALITIES>10|DATA$INJURIES>10 , select=c(FATALITIES,INJURIES, EVTYPE_modified))
+total<-aggregate(SUBDATA[,1:2 ], list(SUBDATA$EVTYPE_modified), FUN=function(x){sum(x,na.rm=TRUE)})
+colnames(total)<-c("EVTYPE","FATALITIES","INJURIES")
+
+par(mar = c(10,10,4,2) + 1, par(las=2))
+barplot(log(as.matrix(t(total[,2:3] +1)), base = 100), col=c("orange", "brown"),
+        xlab= "log_100 number of incidents", axisnames = T ,xlim=c(0,3),
+        names.arg  = as.vector(total$EVTYPE),beside = TRUE, horiz = T
+)
+
+legend(x=2,y=6, legend = colnames(total)[2:3], 
+       fill = c("orange", "brown"), box.lty = 1, cex = 1)
+```
+
+To filter the dmage impact we would consider a damage with public impact if its cost are above 10 million dollars
+```{r , echo = TRUE, fig.height= 6, fig.width= 10,fig.align = "center"}
+SUBDATA<- subset(x=DATA, DATA$PROPDAMAGE>10^7|DATA$CROPDAMAGE>10^7 , select=c(PROPDAMAGE,CROPDAMAGE, EVTYPE_modified))
+total<-aggregate(SUBDATA[,1:2 ], list(SUBDATA$EVTYPE_modified), FUN=function(x){sum(x,na.rm=TRUE)})
+colnames(total)<-c("EVTYPE","PROPDAMAGE","CROPDAMAGE")
+
+#pie(total$PROPDAMAGE, cex=1, labels = total$EVTYPE)
+#pie(total$CROPDAMAGE, cex=1, labels = total$EVTYPE)
+par(mar = c(10,10,4,2) + 0.1, par(las=2))
+barplot(log(as.matrix(t(total[,2:3] +1)), base = 100), col=c("orange", "brown"),
+        xlab= "log_100 number of incidents", axisnames = T , xlim=c(0,6),
+        names.arg  = as.vector(total$EVTYPE),beside = TRUE, horiz = T
+        )
+legend(x=1,y=6, legend = colnames(total)[2:3], 
+       fill = c("orange", "brown"), box.lty = 1, cex = 1)
+
+```
+
+# Conclusions
+On one hand, we observe that the most harmful event for public health is `STORM` and `HOT` weather in terms of fatalities and injuries. On the other hand, `FLOOD` and `STORM` create the most property and crop damages.  
